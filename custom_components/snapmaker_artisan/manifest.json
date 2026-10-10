@@ -1,5 +1,5 @@
 {
-  "domain": "de_skoah_ha_snapmaker_artisan",
+  "domain": "snapmaker_artisan",
   "name": "Snapmaker Artisan",
   "codeowners": [],
   "config_flow": true,
