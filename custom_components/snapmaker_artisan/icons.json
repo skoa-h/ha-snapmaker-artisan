@@ -1,0 +1,18 @@
+{
+  "entity": {
+    "sensor": {
+      "status": { "default": "mdi:printer-3d" },
+      "progress": { "default": "mdi:progress-clock" },
+      "file_name": { "default": "mdi:file-outline" },
+      "elapsed_time": { "default": "mdi:timer-outline" },
+      "remaining_time": { "default": "mdi:timer-sand" },
+      "finish_time": { "default": "mdi:clock-end" },
+      "nozzle_temperature": { "default": "mdi:printer-3d-nozzle-heat" },
+      "nozzle_target_temperature": { "default": "mdi:printer-3d-nozzle-heat-outline" },
+      "nozzle_2_temperature": { "default": "mdi:printer-3d-nozzle-heat" },
+      "nozzle_2_target_temperature": { "default": "mdi:printer-3d-nozzle-heat-outline" },
+      "bed_temperature": { "default": "mdi:radiator" },
+      "bed_target_temperature": { "default": "mdi:radiator-disabled" }
+    }
+  }
+}

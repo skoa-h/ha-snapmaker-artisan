@@ -1,0 +1,12 @@
+{
+  "domain": "snapmaker_artisan",
+  "name": "Snapmaker Artisan",
+  "codeowners": [],
+  "config_flow": true,
+  "documentation": "https://github.com/your-github-user/ha-snapmaker-artisan",
+  "integration_type": "device",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/your-github-user/ha-snapmaker-artisan/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}

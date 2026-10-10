@@ -1,0 +1,58 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect your Snapmaker Artisan",
+        "description": "Enter the IP address of the printer (Touchscreen: Settings > About). Printers found on your network: {found}\n\nAfter submitting, go to the printer and tap **Yes** on the connection request shown on the touchscreen.",
+        "data": {
+          "host": "Host"
+        },
+        "data_description": {
+          "host": "IP address or hostname of the printer."
+        }
+      }
+    },
+    "progress": {
+      "confirm_on_touchscreen": "Waiting for you to accept the connection from \"Home Assistant\" on the touchscreen of the printer at {host}…"
+    },
+    "error": {
+      "cannot_connect": "Could not reach the printer on TCP port 8888. Check the IP address and that the printer is switched on and connected to Wi-Fi.",
+      "not_confirmed": "The connection was not accepted on the touchscreen in time. Try again and tap Yes on the printer.",
+      "unknown": "Unexpected error, see the log for details."
+    },
+    "abort": {
+      "already_configured": "This printer is already configured."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "status": {
+        "name": "Status",
+        "state": {
+          "idle": "Idle",
+          "starting": "Starting",
+          "printing": "Printing",
+          "pausing": "Pausing",
+          "paused": "Paused",
+          "stopping": "Stopping",
+          "stopped": "Stopped",
+          "finishing": "Finishing",
+          "completed": "Completed",
+          "recovering": "Recovering",
+          "resuming": "Resuming"
+        }
+      },
+      "progress": { "name": "Print progress" },
+      "file_name": { "name": "Print file" },
+      "elapsed_time": { "name": "Print time elapsed" },
+      "remaining_time": { "name": "Print time remaining" },
+      "finish_time": { "name": "Print finish time" },
+      "nozzle_temperature": { "name": "Nozzle temperature" },
+      "nozzle_target_temperature": { "name": "Nozzle target temperature" },
+      "nozzle_2_temperature": { "name": "Nozzle 2 temperature" },
+      "nozzle_2_target_temperature": { "name": "Nozzle 2 target temperature" },
+      "bed_temperature": { "name": "Bed temperature" },
+      "bed_target_temperature": { "name": "Bed target temperature" }
+    }
+  }
+}
