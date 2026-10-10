@@ -20,9 +20,21 @@ polling. The J1 uses the same protocol and will probably work too.
 | Print finish time | Estimated wall-clock time the print finishes |
 | Nozzle (2) temperature / target | Both nozzles of the dual-extrusion head |
 | Bed temperature / target | Heated bed |
+| Connection (switch) | Turn off to disconnect Home Assistant from the printer, on to reconnect |
 
 While the printer is off, the entities show as *unavailable*. The integration
 reconnects on its own when the printer comes back.
+
+## Using Luban at the same time
+
+The printer probably accepts only one SACP connection at a time. To use Luban, turn off the
+**Connection** switch (under the device's *Configuration* section): Home
+Assistant disconnects and stops reconnecting, and Luban can connect. Turn the
+switch back on when you're done. The setting survives Home Assistant restarts.
+You may have to confirm on the touchscreen again when reconnecting.
+
+You can also automate it, e.g. with `switch.turn_off` on
+`switch.snapmaker_artisan_connection`.
 
 ## Installation
 
@@ -80,9 +92,8 @@ automation:
 - **The touchscreen may ask again.** Some firmware versions remember a
   confirmed client and others ask after every power cycle. If a reconnect isn't
   confirmed, the integration retries every 5 minutes and logs a warning.
-- **Luban and Home Assistant together:** the printer may accept only one SACP
-  client at a time. To connect with Luban, you may need to disable the
-  integration temporarily.
+- **Luban and Home Assistant together:** probably only one can be connected at a time;
+  see [Using Luban at the same time](#using-luban-at-the-same-time).
 - **Progress depends on the touchscreen.** The percentage needs the total
   line count of the job, which the touchscreen reports. If it can't (some
   firmware versions don't answer this request), progress is *unknown*, but

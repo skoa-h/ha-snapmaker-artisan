@@ -14,13 +14,11 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.const import PERCENTAGE, UnitOfTemperature, UnitOfTime
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
-from .const import CONF_MODEL, CONF_SERIAL, DOMAIN
 from .coordinator import SnapmakerConfigEntry, SnapmakerCoordinator
+from .entity import SnapmakerEntity
 from .sacp import MachineStatus, PrinterState
 
 PARALLEL_UPDATES = 0
@@ -124,26 +122,6 @@ async def async_setup_entry(
     ]
     entities.append(SnapmakerFinishTimeSensor(coordinator))
     async_add_entities(entities)
-
-
-class SnapmakerEntity(CoordinatorEntity[SnapmakerCoordinator]):
-    _attr_has_entity_name = True
-
-    def __init__(self, coordinator: SnapmakerCoordinator, key: str) -> None:
-        super().__init__(coordinator)
-        entry = coordinator.config_entry
-        self._attr_unique_id = f"{entry.unique_id or entry.entry_id}_{key}"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, entry.unique_id or entry.entry_id)},
-            manufacturer="Snapmaker",
-            model=entry.data.get(CONF_MODEL) or "Snapmaker Artisan",
-            name=entry.title,
-            serial_number=entry.data.get(CONF_SERIAL),
-        )
-
-    @property
-    def available(self) -> bool:
-        return super().available and self.coordinator.client.connected
 
 
 class SnapmakerSensor(SnapmakerEntity, SensorEntity):

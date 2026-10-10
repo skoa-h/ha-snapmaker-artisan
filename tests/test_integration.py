@@ -157,3 +157,42 @@ async def test_unload_with_pending_debounced_update(hass: HomeAssistant, printer
         await hass.async_block_till_done()
         assert coordinator._pending_update is None
         assert not coordinator.client.connected
+
+
+async def test_connection_switch(hass: HomeAssistant, printer: FakePrinter) -> None:
+    entry_id = await _setup_via_flow(hass)
+    switch = "switch.snapmaker_artisan_connection"
+    status = "sensor.snapmaker_artisan_status"
+    connects = lambda: sum(p.command == (0x01, 0x05) for p in printer.received)  # noqa: E731
+    printer.push_all()
+    await _wait(hass, lambda: hass.states.get(status).state == "idle")
+    assert hass.states.get(switch).state == "on"
+
+    # Off: polite disconnect, sensors unavailable, switch stays usable.
+    await hass.services.async_call("switch", "turn_off", {"entity_id": switch}, blocking=True)
+    await _wait(hass, lambda: any(p.command == (0x01, 0x06) for p in printer.received))
+    assert hass.states.get(switch).state == "off"
+    assert hass.states.get(status).state == STATE_UNAVAILABLE
+    entry = hass.config_entries.async_get_entry(entry_id)
+    assert entry.options["connection_enabled"] is False
+    # ...and it doesn't come back on its own (RECONNECT_DELAY is 0.05 s here).
+    await asyncio.sleep(0.3)
+    assert connects() == 1
+
+    # Still off after a reload / Home Assistant restart.
+    assert await hass.config_entries.async_reload(entry_id)
+    await hass.async_block_till_done()
+    await asyncio.sleep(0.3)
+    assert connects() == 1
+    assert hass.states.get(switch).state == "off"
+
+    # On: reconnects.
+    await hass.services.async_call("switch", "turn_on", {"entity_id": switch}, blocking=True)
+    await _wait(hass, lambda: connects() == 2 and printer.subscriptions)
+    await _wait(hass, lambda: hass.config_entries.async_get_entry(entry_id).runtime_data.client.connected)
+    printer.push_all()
+    await _wait(hass, lambda: hass.states.get(status).state == "idle")
+    assert hass.states.get(switch).state == "on"
+
+    assert await hass.config_entries.async_unload(entry_id)
+    await hass.async_block_till_done()

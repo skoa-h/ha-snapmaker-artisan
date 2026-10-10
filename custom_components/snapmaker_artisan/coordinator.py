@@ -13,6 +13,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from .const import (
     AUTH_TIMEOUT,
     CLIENT_NAME,
+    CONF_CONNECTION_ENABLED,
     DOMAIN,
     RECONNECT_DELAY,
     RECONNECT_DELAY_AUTH,
@@ -47,6 +48,7 @@ class SnapmakerCoordinator(DataUpdateCoordinator[PrinterState]):
         )
         self._connection_lost = asyncio.Event()
         self._pending_update: asyncio.TimerHandle | None = None
+        self._run_task: asyncio.Task | None = None
         if client is None:
             client = SnapmakerClient(entry.data[CONF_HOST], client_name=CLIENT_NAME)
         # Reuse the already-authorised connection from the config flow if any.
@@ -74,8 +76,54 @@ class SnapmakerCoordinator(DataUpdateCoordinator[PrinterState]):
     def _handle_disconnect(self) -> None:
         self._connection_lost.set()
 
-    async def async_run(self) -> None:
-        """Connect, wait for the connection to drop, reconnect. Forever."""
+    @property
+    def connection_enabled(self) -> bool:
+        """Whether the user wants Home Assistant to stay connected."""
+        return self.config_entry.options.get(CONF_CONNECTION_ENABLED, True)
+
+    @callback
+    def async_start(self) -> None:
+        """Start the connection loop unless the user switched it off."""
+        if not self.connection_enabled:
+            # A connection handed over by the config flow isn't wanted either.
+            self.config_entry.async_create_background_task(
+                self.hass, self.client.disconnect(), f"{self.name} disconnect"
+            )
+            return
+        if self._run_task is None or self._run_task.done():
+            self._run_task = self.config_entry.async_create_background_task(
+                self.hass, self._async_run(), f"{self.name} connection"
+            )
+
+    async def async_stop(self) -> None:
+        """Stop reconnecting and close the connection to the printer."""
+        if self._run_task is not None:
+            self._run_task.cancel()
+            try:
+                await self._run_task
+            except asyncio.CancelledError:
+                pass
+            self._run_task = None
+        await self.client.disconnect()
+        self.last_update_success = False
+        self.async_update_listeners()
+
+    async def async_set_connection_enabled(self, enabled: bool) -> None:
+        """Connect or disconnect on user request; remembered across restarts."""
+        self.hass.config_entries.async_update_entry(
+            self.config_entry,
+            options={**self.config_entry.options, CONF_CONNECTION_ENABLED: enabled},
+        )
+        if enabled:
+            _LOGGER.info("Connecting to Snapmaker at %s on user request", self.client.host)
+            self.async_start()
+        else:
+            _LOGGER.info("Disconnecting from Snapmaker at %s on user request", self.client.host)
+            await self.async_stop()
+        self.async_update_listeners()
+
+    async def _async_run(self) -> None:
+        """Connect, wait for the connection to drop, reconnect. Until stopped."""
         while True:
             if not self.client.connected:
                 try:
@@ -112,5 +160,8 @@ class SnapmakerCoordinator(DataUpdateCoordinator[PrinterState]):
         if self._pending_update:
             self._pending_update.cancel()
             self._pending_update = None
+        if self._run_task is not None:
+            self._run_task.cancel()
+            self._run_task = None
         await self.client.disconnect()
         await super().async_shutdown()

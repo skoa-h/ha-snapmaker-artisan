@@ -8,7 +8,7 @@ from homeassistant.core import HomeAssistant
 from .const import DOMAIN
 from .coordinator import SnapmakerConfigEntry, SnapmakerCoordinator
 
-PLATFORMS: list[Platform] = [Platform.SENSOR]
+PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.SWITCH]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: SnapmakerConfigEntry) -> bool:
@@ -23,9 +23,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: SnapmakerConfigEntry) ->
     entry.runtime_data = coordinator
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    entry.async_create_background_task(
-        hass, coordinator.async_run(), f"{DOMAIN} connection {entry.data[CONF_HOST]}"
-    )
+    coordinator.async_start()
     return True
 
 

@@ -13,6 +13,12 @@
       "nozzle_2_target_temperature": { "default": "mdi:printer-3d-nozzle-heat-outline" },
       "bed_temperature": { "default": "mdi:radiator" },
       "bed_target_temperature": { "default": "mdi:radiator-disabled" }
+    },
+    "switch": {
+      "connection": {
+        "default": "mdi:lan-connect",
+        "state": { "off": "mdi:lan-disconnect" }
+      }
     }
   }
 }

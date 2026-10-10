@@ -1,0 +1,85 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Snapmaker Artisan verbinden",
+        "description": "Gib die IP-Adresse des Druckers ein (Touchscreen: Einstellungen > Über). Im Netzwerk gefundene Drucker: {found}\n\nGeh nach dem Absenden zum Drucker und tippe auf dem Touchscreen bei der Verbindungsanfrage auf **Ja**.",
+        "data": {
+          "host": "Host"
+        },
+        "data_description": {
+          "host": "IP-Adresse oder Hostname des Druckers."
+        }
+      }
+    },
+    "progress": {
+      "confirm_on_touchscreen": "Warte darauf, dass du die Verbindung von „Home Assistant“ auf dem Touchscreen des Druckers unter {host} bestätigst …"
+    },
+    "error": {
+      "cannot_connect": "Der Drucker ist über TCP-Port 8888 nicht erreichbar. Prüfe die IP-Adresse und ob der Drucker eingeschaltet und mit dem WLAN verbunden ist.",
+      "not_confirmed": "Die Verbindung wurde auf dem Touchscreen nicht rechtzeitig bestätigt. Versuche es erneut und tippe am Drucker auf Ja.",
+      "unknown": "Unerwarteter Fehler, Details stehen im Log."
+    },
+    "abort": {
+      "already_configured": "Dieser Drucker ist bereits eingerichtet."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "status": {
+        "name": "Status",
+        "state": {
+          "idle": "Bereit",
+          "starting": "Startet",
+          "printing": "Druckt",
+          "pausing": "Pausiert gerade",
+          "paused": "Pausiert",
+          "stopping": "Stoppt",
+          "stopped": "Gestoppt",
+          "finishing": "Wird beendet",
+          "completed": "Fertig",
+          "recovering": "Wird wiederhergestellt",
+          "resuming": "Wird fortgesetzt"
+        }
+      },
+      "progress": {
+        "name": "Druckfortschritt"
+      },
+      "file_name": {
+        "name": "Druckdatei"
+      },
+      "elapsed_time": {
+        "name": "Bisherige Druckzeit"
+      },
+      "remaining_time": {
+        "name": "Verbleibende Druckzeit"
+      },
+      "finish_time": {
+        "name": "Voraussichtliches Druckende"
+      },
+      "nozzle_temperature": {
+        "name": "Düsentemperatur"
+      },
+      "nozzle_target_temperature": {
+        "name": "Düsen-Solltemperatur"
+      },
+      "nozzle_2_temperature": {
+        "name": "Düse 2 Temperatur"
+      },
+      "nozzle_2_target_temperature": {
+        "name": "Düse 2 Solltemperatur"
+      },
+      "bed_temperature": {
+        "name": "Druckbetttemperatur"
+      },
+      "bed_target_temperature": {
+        "name": "Druckbett-Solltemperatur"
+      }
+    },
+    "switch": {
+      "connection": {
+        "name": "Verbindung"
+      }
+    }
+  }
+}

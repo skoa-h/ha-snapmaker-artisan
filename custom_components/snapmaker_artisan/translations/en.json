@@ -53,6 +53,9 @@
       "nozzle_2_target_temperature": { "name": "Nozzle 2 target temperature" },
       "bed_temperature": { "name": "Bed temperature" },
       "bed_target_temperature": { "name": "Bed target temperature" }
+    },
+    "switch": {
+      "connection": { "name": "Connection" }
     }
   }
 }
