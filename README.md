@@ -14,6 +14,7 @@ polling. The J1 uses the same protocol and will probably work too.
 | Entity | Description |
 | --- | --- |
 | Print progress | % complete (current G-code line / total lines) |
+| Current line | G-code line being printed (also when the total is unknown) |
 | Status | idle, printing, paused, completed, … |
 | Print file | File name of the current job |
 | Print time elapsed / remaining | Durations; remaining is estimated the way Luban estimates it |

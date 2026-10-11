@@ -48,6 +48,9 @@
       "file_name": {
         "name": "Druckdatei"
       },
+      "current_line": {
+        "name": "Aktuelle Zeile"
+      },
       "elapsed_time": {
         "name": "Bisherige Druckzeit"
       },

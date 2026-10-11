@@ -4,6 +4,7 @@
       "status": { "default": "mdi:printer-3d" },
       "progress": { "default": "mdi:progress-clock" },
       "file_name": { "default": "mdi:file-outline" },
+      "current_line": { "default": "mdi:format-list-numbered" },
       "elapsed_time": { "default": "mdi:timer-outline" },
       "remaining_time": { "default": "mdi:timer-sand" },
       "finish_time": { "default": "mdi:clock-end" },

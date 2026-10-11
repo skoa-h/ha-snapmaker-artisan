@@ -88,6 +88,7 @@ async def test_full_flow_and_sensors(hass: HomeAssistant, printer: FakePrinter) 
 
     states = {s.entity_id: s.state for s in hass.states.async_all("sensor")}
     assert states["sensor.snapmaker_artisan_status"] == "printing"
+    assert states["sensor.snapmaker_artisan_current_line"] == "420"
     assert states["sensor.snapmaker_artisan_nozzle_temperature"] == "210.5"
     assert states["sensor.snapmaker_artisan_nozzle_2_temperature"] == "25.0"
     assert states["sensor.snapmaker_artisan_bed_temperature"] == "59.8"

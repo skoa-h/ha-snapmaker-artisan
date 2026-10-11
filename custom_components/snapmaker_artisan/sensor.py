@@ -76,6 +76,13 @@ SENSORS: tuple[SnapmakerSensorDescription, ...] = (
         translation_key="file_name",
         value_fn=lambda s: s.file_name,
     ),
+    # The Artisan doesn't always report the total line count (needed for the
+    # percentage), but the current line shows the print is moving on.
+    SnapmakerSensorDescription(
+        key="current_line",
+        translation_key="current_line",
+        value_fn=lambda s: s.current_line if s.is_active else None,
+    ),
     SnapmakerSensorDescription(
         key="elapsed_time",
         translation_key="elapsed_time",

@@ -44,6 +44,7 @@
       },
       "progress": { "name": "Print progress" },
       "file_name": { "name": "Print file" },
+      "current_line": { "name": "Current line" },
       "elapsed_time": { "name": "Print time elapsed" },
       "remaining_time": { "name": "Print time remaining" },
       "finish_time": { "name": "Print finish time" },
