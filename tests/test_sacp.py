@@ -1,9 +1,11 @@
 """Tests for the SACP protocol client."""
 
 import asyncio
+import logging
 
 import pytest
 
+from custom_components.snapmaker_artisan import sacp
 from custom_components.snapmaker_artisan.sacp import (
     CMD_BED_INFO,
     CMD_CURRENT_LINE,
@@ -123,6 +125,31 @@ async def test_file_info_unavailable_gives_unknown_progress(printer: FakePrinter
     await asyncio.sleep(0.1)
     assert client.state.progress is None
     assert client.state.remaining_time is None
+    await client.disconnect()
+
+
+async def test_screen_ignores_file_info_request(
+    printer: FakePrinter, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Touchscreen prints: no line count, but the controller still names the file."""
+    monkeypatch.setattr(sacp, "FILE_INFO_TIMEOUT", 0.2)
+    monkeypatch.setattr(sacp, "FILE_INFO_RETRY", 0)
+    printer.screen_answers_file_info = False
+    client = SnapmakerClient("127.0.0.1", port=printer.port)
+    await client.connect(auth_timeout=2)
+    printer.status = MachineStatus.PRINTING
+    printer.file_name = "benchy.gcode"
+    printer.current_line = 10
+    with caplog.at_level(logging.DEBUG, logger=sacp.__name__):
+        printer.push_all()
+        await _wait_for(lambda: client.state.file_name == "benchy.gcode")
+        # A second attempt only logs at debug level.
+        printer.push_all()
+        await _wait_for(lambda: caplog.text.count("Printing file info not available") >= 1)
+    assert client.state.progress is None
+    warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(warnings) == 1
+    assert "does not report the line count" in warnings[0].getMessage()
     await client.disconnect()
 
 

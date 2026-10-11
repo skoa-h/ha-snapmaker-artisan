@@ -95,9 +95,10 @@ automation:
 - **Luban and Home Assistant together:** probably only one can be connected at a time;
   see [Using Luban at the same time](#using-luban-at-the-same-time).
 - **Progress depends on the touchscreen.** The percentage needs the total
-  line count of the job, which the touchscreen reports. If it can't (some
-  firmware versions don't answer this request), progress is *unknown*, but
-  status, elapsed time and temperatures still work.
+  line count of the job, which only the touchscreen knows. For prints started
+  on the touchscreen it often doesn't answer that request; then progress and
+  remaining time are *unknown* (a warning is logged once), while status, file
+  name, elapsed time and temperatures still work.
 - **Read-only:** no pause, stop or temperature controls.
 
 ## Development

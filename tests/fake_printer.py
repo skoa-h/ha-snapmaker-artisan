@@ -12,6 +12,7 @@ from custom_components.snapmaker_artisan.sacp import (
     CMD_CONNECT,
     CMD_CURRENT_LINE,
     CMD_DISCONNECT,
+    CMD_FILE_INFO,
     CMD_HEARTBEAT,
     CMD_NOZZLE_INFO,
     CMD_PRINT_TIME,
@@ -31,6 +32,8 @@ class FakePrinter:
         self.estimate = 0
         self.file_name = ""
         self.accept_connection = True
+        # Real touchscreens often ignore the printing file info request.
+        self.screen_answers_file_info = True
         self.subscriptions: dict[tuple[int, int], int] = {}
         self.received: list[Packet] = []
         self.server: asyncio.Server | None = None
@@ -81,8 +84,18 @@ class FakePrinter:
             command = (packet.payload[0], packet.payload[1])
             self.subscriptions[command] = struct.unpack_from("<H", packet.payload, 2)[0]
             self._reply(writer, packet, b"\x00")
+        elif packet.command == CMD_FILE_INFO:
+            if self.status and self.file_name:
+                self._reply(
+                    writer, packet,
+                    b"\x00" + sacp_string("0123456789abcdef") + sacp_string(self.file_name),
+                )
+            else:
+                self._reply(writer, packet, b"\x01")
         elif packet.command == CMD_PRINTING_FILE_INFO:
-            if self.total_lines:
+            if not self.screen_answers_file_info:
+                pass
+            elif self.total_lines:
                 self._reply(
                     writer, packet,
                     b"\x00" + sacp_string(self.file_name)

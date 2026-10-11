@@ -53,10 +53,16 @@ CMD_DISCONNECT = (0x01, 0x06)
 CMD_HEARTBEAT = (0x01, 0xA0)
 CMD_NOZZLE_INFO = (0x10, 0xA0)
 CMD_BED_INFO = (0x14, 0xA0)
+CMD_FILE_INFO = (0xAC, 0x00)
 CMD_PRINTING_FILE_INFO = (0xAC, 0x1A)
 CMD_CURRENT_LINE = (0xAC, 0xA0)
 CMD_PRINT_TIME = (0xAC, 0xA5)
 CMD_SCREEN_HEARTBEAT = (0xB0, 0x0B)
+
+# The touchscreen often never answers the printing file info request (e.g. for
+# prints started on the touchscreen), so don't keep asking every few seconds.
+FILE_INFO_RETRY = 60
+FILE_INFO_TIMEOUT = 5
 
 
 class SacpError(Exception):
@@ -263,6 +269,7 @@ class SnapmakerClient:
         self._last_heartbeat = 0.0
         self._file_info_task: asyncio.Task | None = None
         self._file_info_attempt = 0.0
+        self._line_count_warned = False
         self._closing = False
 
     def set_callbacks(
@@ -547,33 +554,68 @@ class SnapmakerClient:
             not self.state.is_active
             or (self.state.total_lines and self.state.file_name)
             or (self._file_info_task and not self._file_info_task.done())
-            or time.monotonic() - self._file_info_attempt < 15
+            or time.monotonic() - self._file_info_attempt < FILE_INFO_RETRY
         ):
             return
         self._file_info_attempt = time.monotonic()
         self._file_info_task = asyncio.create_task(self._fetch_file_info())
 
     async def _fetch_file_info(self) -> None:
-        try:
-            response = await self._request(PEER_SCREEN, CMD_PRINTING_FILE_INFO, b"\x00", 5)
-        except (TimeoutError, SacpError, OSError) as err:
-            _LOGGER.debug("Printing file info not available: %s", err)
-            return
-        data = response.payload
-        if not data or data[0] != 0:
-            _LOGGER.debug("Printing file info rejected: %s", data.hex())
-            return
-        try:
-            name, offset = read_sacp_string(data, 1)
-            total, estimate = struct.unpack_from("<II", data, offset)
-        except struct.error:
-            _LOGGER.debug("Cannot parse printing file info %s", data.hex())
-            return
-        self.state.file_name = name or None
-        self.state.total_lines = total
-        self.state.estimated_time = estimate
+        if not self.state.total_lines:
+            await self._fetch_printing_file_info()
+        if not self.state.file_name:
+            await self._fetch_controller_file_info()
         if self._on_update:
             self._on_update(self.state)
+
+    async def _fetch_printing_file_info(self) -> None:
+        """Line count and slicer estimate from the touchscreen (needed for progress)."""
+        try:
+            response = await self._request(
+                PEER_SCREEN, CMD_PRINTING_FILE_INFO, b"\x00", FILE_INFO_TIMEOUT
+            )
+            data = response.payload
+            if not data or data[0] != 0:
+                raise SacpError(f"rejected ({data.hex()})")
+            name, offset = read_sacp_string(data, 1)
+            total, estimate = struct.unpack_from("<II", data, offset)
+        except (TimeoutError, SacpError, OSError, struct.error) as err:
+            self._no_line_count(repr(err))
+            return
+        if not total:
+            self._no_line_count(f"reported 0 lines ({data.hex()})")
+            return
+        self.state.file_name = name or self.state.file_name
+        self.state.total_lines = total
+        self.state.estimated_time = estimate
+
+    def _no_line_count(self, reason: str) -> None:
+        if self._line_count_warned:
+            _LOGGER.debug("Printing file info not available: %s", reason)
+            return
+        self._line_count_warned = True
+        _LOGGER.warning(
+            "Snapmaker at %s does not report the line count of the running job "
+            "(%s); print progress and remaining time stay unknown. Will keep asking "
+            "every %s s",
+            self.host, reason, FILE_INFO_RETRY,
+        )
+
+    async def _fetch_controller_file_info(self) -> None:
+        """Name of the running job from the controller; it knows even when the screen won't say."""
+        try:
+            response = await self._request(
+                PEER_CONTROLLER, CMD_FILE_INFO, b"", FILE_INFO_TIMEOUT
+            )
+            data = response.payload
+            if not data or data[0] != 0:
+                raise SacpError(f"rejected ({data.hex()})")
+            _md5, offset = read_sacp_string(data, 1)
+            name, _ = read_sacp_string(data, offset)
+        except (TimeoutError, SacpError, OSError, struct.error) as err:
+            _LOGGER.debug("File info not available from controller: %r", err)
+            return
+        self.state.file_name = name or None
 
 
 @dataclass
