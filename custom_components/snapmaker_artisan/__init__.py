@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
+from homeassistant.components import panel_custom
+from homeassistant.components.http import StaticPathConfig
 from homeassistant.const import CONF_HOST, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
@@ -10,14 +14,30 @@ from homeassistant.helpers.typing import ConfigType
 from .const import DOMAIN
 from .coordinator import SnapmakerConfigEntry, SnapmakerCoordinator
 from .services import async_setup_services
+from .views import SnapmakerPrintersView, SnapmakerUploadView
 
 PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.SWITCH]
+PANEL_URL = f"/{DOMAIN}_static"
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Register services once for the whole integration."""
     async_setup_services(hass)
+    hass.http.register_view(SnapmakerPrintersView())
+    hass.http.register_view(SnapmakerUploadView())
+    await hass.http.async_register_static_paths(
+        [StaticPathConfig(PANEL_URL, str(Path(__file__).parent / "frontend"), False)]
+    )
+    await panel_custom.async_register_panel(
+        hass,
+        webcomponent_name="snapmaker-upload-panel",
+        frontend_url_path=DOMAIN,
+        module_url=f"{PANEL_URL}/snapmaker-upload-panel.js",
+        sidebar_title="Snapmaker upload",
+        sidebar_icon="mdi:upload",
+        require_admin=True,
+    )
     return True
 
 

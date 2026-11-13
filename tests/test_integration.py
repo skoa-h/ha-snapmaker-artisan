@@ -197,3 +197,26 @@ async def test_connection_switch(hass: HomeAssistant, printer: FakePrinter) -> N
 
     assert await hass.config_entries.async_unload(entry_id)
     await hass.async_block_till_done()
+
+
+async def test_upload_via_http(hass: HomeAssistant, hass_client, printer: FakePrinter) -> None:
+    from aiohttp import FormData
+
+    entry_id = await _setup_via_flow(hass)
+    client = await hass_client()
+
+    response = await client.get("/api/snapmaker_artisan/printers")
+    assert [p["entry_id"] for p in await response.json()] == [entry_id]
+
+    form = FormData()
+    form.add_field("entry_id", entry_id)
+    form.add_field("file", b"G28\nG1 X10\n", filename="cube.gcode")
+    response = await client.post("/api/snapmaker_artisan/upload", data=form)
+    assert response.status == 200, await response.text()
+    assert printer.uploads == {"cube.gcode": b"G28\nG1 X10\n"}
+
+    form = FormData()
+    form.add_field("entry_id", "nope")
+    form.add_field("file", b"x", filename="a.gcode")
+    response = await client.post("/api/snapmaker_artisan/upload", data=form)
+    assert response.status == 400

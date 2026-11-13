@@ -46,13 +46,27 @@ def _get_entry(hass: HomeAssistant, device_id: str) -> SnapmakerConfigEntry:
     raise ServiceValidationError(f"{device_id} is not a Snapmaker Artisan device")
 
 
-async def _async_upload_gcode(call: ServiceCall) -> None:
-    hass = call.hass
-    entry = _get_entry(hass, call.data[ATTR_DEVICE_ID])
+async def async_upload_to_entry(entry: SnapmakerConfigEntry, name: str, data: bytes) -> None:
+    """Upload G-code to the printer of a config entry (shared by service and web UI)."""
     if not hasattr(entry, "runtime_data"):
         raise ServiceValidationError("The Snapmaker Artisan entry is not loaded")
     client = entry.runtime_data.client
+    if not client.connected:
+        raise HomeAssistantError(
+            "Not connected to the printer (is the Connection switch on?)"
+        )
+    if client.state.is_active:
+        raise HomeAssistantError("The printer is busy with a print job")
+    _LOGGER.debug("Uploading %s (%d bytes) to %s", name, len(data), client.host)
+    try:
+        await client.upload_file(name, data)
+    except SacpError as err:
+        raise HomeAssistantError(f"Upload failed: {err}") from err
 
+
+async def _async_upload_gcode(call: ServiceCall) -> None:
+    hass = call.hass
+    entry = _get_entry(hass, call.data[ATTR_DEVICE_ID])
     path: str = call.data[ATTR_FILE_PATH]
     if not hass.config.is_allowed_path(path):
         raise ServiceValidationError(
@@ -60,20 +74,9 @@ async def _async_upload_gcode(call: ServiceCall) -> None:
         )
     if not os.path.isfile(path):
         raise ServiceValidationError(f"{path} does not exist")
-    if not client.connected:
-        raise HomeAssistantError(
-            "Not connected to the printer (is the Connection switch on?)"
-        )
-    if client.state.is_active:
-        raise HomeAssistantError("The printer is busy with a print job")
-
     name = call.data.get(ATTR_FILENAME) or os.path.basename(path)
     data = await hass.async_add_executor_job(_read_file, path)
-    _LOGGER.debug("Uploading %s (%d bytes) to %s", name, len(data), client.host)
-    try:
-        await client.upload_file(name, data)
-    except SacpError as err:
-        raise HomeAssistantError(f"Upload failed: {err}") from err
+    await async_upload_to_entry(entry, name, data)
 
 
 def async_setup_services(hass: HomeAssistant) -> None:
