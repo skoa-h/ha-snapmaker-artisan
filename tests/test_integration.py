@@ -222,8 +222,49 @@ async def test_upload_via_http(hass: HomeAssistant, hass_client, printer: FakePr
     assert response.status == 400
 
 
+def _gcode_form(entry_id: str, name: str = "cube.gcode"):
+    from aiohttp import FormData
+
+    form = FormData()
+    form.add_field("entry_id", entry_id)
+    form.add_field("file", b"G28\n", filename=name)
+    return form
+
+
+async def test_upload_local_only(
+    hass: HomeAssistant, hass_client, hass_read_only_access_token: str, printer: FakePrinter
+) -> None:
+    entry_id = await _setup_via_flow(hass)
+    client = await hass_client(hass_read_only_access_token)
+    views = "custom_components.snapmaker_artisan.views"
+
+    # The test client connects from 127.0.0.1, which counts as local.
+    response = await client.post("/api/snapmaker_artisan/upload", data=_gcode_form(entry_id, "local.gcode"))
+    assert response.status == 200, await response.text()
+    assert "local.gcode" in printer.uploads
+
+    with patch(f"{views}.is_local", return_value=False):
+        response = await client.post("/api/snapmaker_artisan/upload", data=_gcode_form(entry_id, "remote.gcode"))
+    assert response.status == 403
+
+    with patch(f"{views}.is_cloud_connection", return_value=True):
+        response = await client.post("/api/snapmaker_artisan/upload", data=_gcode_form(entry_id, "cloud.gcode"))
+    assert response.status == 403
+    assert "remote.gcode" not in printer.uploads
+    assert "cloud.gcode" not in printer.uploads
+
+
+async def test_upload_admin_from_remote(hass: HomeAssistant, hass_client, printer: FakePrinter) -> None:
+    entry_id = await _setup_via_flow(hass)
+    client = await hass_client()
+    with patch("custom_components.snapmaker_artisan.views.is_local", return_value=False):
+        response = await client.post("/api/snapmaker_artisan/upload", data=_gcode_form(entry_id))
+    assert response.status == 403
+    assert printer.uploads == {}
+
+
 async def test_panel_registered(hass: HomeAssistant, printer: FakePrinter) -> None:
     await _setup_via_flow(hass)
     panel = hass.data["frontend_panels"]["snapmaker_artisan"]
     assert panel.sidebar_title == "Snapmaker upload"
-    assert panel.require_admin is True
+    assert panel.require_admin is False

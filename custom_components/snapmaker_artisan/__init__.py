@@ -36,7 +36,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         module_url=f"{PANEL_URL}/snapmaker-upload-panel.js",
         sidebar_title="Snapmaker upload",
         sidebar_icon="mdi:upload",
-        require_admin=True,
+        require_admin=False,
     )
     return True
 

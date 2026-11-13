@@ -3,16 +3,29 @@
 from __future__ import annotations
 
 from http import HTTPStatus
+from ipaddress import ip_address
 
 from aiohttp import web
 from homeassistant.components.http import HomeAssistantView
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers.network import is_cloud_connection
+from homeassistant.util.network import is_local
 
 from .const import DOMAIN
 from .services import async_upload_to_entry
 
 MAX_UPLOAD_BYTES = 512 * 1024 * 1024
+
+
+def _is_local_request(hass: HomeAssistant, request: web.Request) -> bool:
+    """Return True if the request comes from the local network (not via Nabu Casa)."""
+    if is_cloud_connection(hass):
+        return False
+    try:
+        return is_local(ip_address(request.remote or ""))
+    except ValueError:
+        return False
 
 
 def _json_error(message: str, status: HTTPStatus) -> web.Response:
@@ -49,8 +62,13 @@ class SnapmakerUploadView(HomeAssistantView):
     async def post(self, request: web.Request) -> web.Response:
         hass: HomeAssistant = request.app["hass"]
         user = request.get("hass_user")
-        if user is None or not user.is_admin:
-            return _json_error("Admin access required", HTTPStatus.UNAUTHORIZED)
+        if user is None:
+            return _json_error("Authentication required", HTTPStatus.UNAUTHORIZED)
+        if not _is_local_request(hass, request):
+            return _json_error(
+                "Uploads are only allowed from the local network",
+                HTTPStatus.FORBIDDEN,
+            )
 
         entry_id: str | None = None
         filename: str | None = None
