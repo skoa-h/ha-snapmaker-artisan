@@ -220,3 +220,10 @@ async def test_upload_via_http(hass: HomeAssistant, hass_client, printer: FakePr
     form.add_field("file", b"x", filename="a.gcode")
     response = await client.post("/api/snapmaker_artisan/upload", data=form)
     assert response.status == 400
+
+
+async def test_panel_registered(hass: HomeAssistant, printer: FakePrinter) -> None:
+    await _setup_via_flow(hass)
+    panel = hass.data["frontend_panels"]["snapmaker_artisan"]
+    assert panel.sidebar_title == "Snapmaker upload"
+    assert panel.require_admin is True
