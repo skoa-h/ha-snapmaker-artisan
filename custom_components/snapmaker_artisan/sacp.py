@@ -25,6 +25,7 @@ This module has no Home Assistant dependency so it can be tested standalone.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 import struct
 import time
@@ -58,6 +59,15 @@ CMD_PRINTING_FILE_INFO = (0xAC, 0x1A)
 CMD_CURRENT_LINE = (0xAC, 0xA0)
 CMD_PRINT_TIME = (0xAC, 0xA5)
 CMD_SCREEN_HEARTBEAT = (0xB0, 0x0B)
+# File upload: we announce the file (start), the printer then asks for the
+# chunks it wants (chunk) and finally reports the result (finish).
+CMD_UPLOAD_START = (0xB0, 0x00)
+CMD_UPLOAD_CHUNK = (0xB0, 0x01)
+CMD_UPLOAD_FINISH = (0xB0, 0x02)
+
+UPLOAD_CHUNK_SIZE = 60 * 1024
+# Abort an upload when the printer neither asks for data nor finishes for this long.
+UPLOAD_IDLE_TIMEOUT = 30
 
 # The touchscreen often never answers the printing file info request (e.g. for
 # prints started on the touchscreen), so don't keep asking every few seconds.
@@ -242,6 +252,17 @@ class PrinterState:
         return int(self.elapsed_time * (1 - fraction) / fraction)
 
 
+@dataclass
+class _Upload:
+    """State of the file transfer in progress."""
+
+    md5: str
+    data: bytes
+    done: asyncio.Future[None]
+    on_progress: Callable[[float], None] | None = None
+    last_activity: float = field(default_factory=time.monotonic)
+
+
 class SnapmakerClient:
     """Keeps one SACP connection open and tracks printer state."""
 
@@ -271,6 +292,7 @@ class SnapmakerClient:
         self._file_info_attempt = 0.0
         self._line_count_warned = False
         self._closing = False
+        self._upload: _Upload | None = None
 
     def set_callbacks(
         self,
@@ -365,6 +387,95 @@ class SnapmakerClient:
         self._fail_pending()
         self._reader = self._writer = None
         self._read_task = self._watchdog_task = self._file_info_task = None
+
+    # ----------------------------------------------------------------- upload
+
+    async def upload_file(
+        self,
+        name: str,
+        data: bytes,
+        on_progress: Callable[[float], None] | None = None,
+    ) -> None:
+        """Transfer a G-code file to the printer's storage.
+
+        The printer pulls the file in 60 KiB chunks once it has been announced.
+        Raises SacpError if the printer rejects or stalls the transfer.
+        """
+        if not self.connected:
+            raise SacpConnectionError("not connected")
+        if self._upload:
+            raise SacpError("another upload is already running")
+
+        md5 = hashlib.md5(data).hexdigest()  # noqa: S324 - protocol requirement
+        packages = len(data) // UPLOAD_CHUNK_SIZE + 1
+        upload = _Upload(md5, data, asyncio.get_running_loop().create_future(), on_progress)
+        self._upload = upload
+        try:
+            payload = (
+                sacp_string(name)
+                + struct.pack("<IH", len(data), packages)
+                + sacp_string(md5)
+            )
+            response = await self._request(PEER_SCREEN, CMD_UPLOAD_START, payload, 10)
+            if response.payload and response.payload[0] != 0:
+                raise SacpError(f"upload rejected by printer ({response.payload.hex()})")
+            while not upload.done.done():
+                await asyncio.wait({upload.done}, timeout=UPLOAD_IDLE_TIMEOUT)
+                if (
+                    not upload.done.done()
+                    and time.monotonic() - upload.last_activity > UPLOAD_IDLE_TIMEOUT
+                ):
+                    raise SacpError("upload stalled, printer stopped requesting data")
+            upload.done.result()
+        except TimeoutError as err:
+            raise SacpError("printer did not answer the upload request") from err
+        finally:
+            self._upload = None
+
+    def _handle_upload_packet(self, packet: Packet) -> bool:
+        """Serve chunk requests / the final result. Returns True if handled."""
+        upload = self._upload
+        if upload is None or packet.command not in (CMD_UPLOAD_CHUNK, CMD_UPLOAD_FINISH):
+            return False
+        upload.last_activity = time.monotonic()
+        if packet.command == CMD_UPLOAD_CHUNK:
+            if packet.attribute != ATTR_REQUEST:
+                return True
+            try:
+                _md5, offset = read_sacp_string(packet.payload, 0)
+                (index,) = struct.unpack_from("<H", packet.payload, offset)
+            except (struct.error, ValueError):
+                return True
+            start = index * UPLOAD_CHUNK_SIZE
+            chunk = upload.data[start : start + UPLOAD_CHUNK_SIZE]
+            reply = (
+                b"\x00" + sacp_string(upload.md5) + struct.pack("<H", index)
+                + struct.pack("<H", len(chunk)) + chunk
+            )
+            if self._writer and not self._writer.is_closing():
+                self._writer.write(
+                    Packet(packet.sender_id, PEER_US, ATTR_ACK, packet.sequence,
+                           *CMD_UPLOAD_CHUNK, reply).encode()
+                )
+            if upload.on_progress:
+                total = len(upload.data)
+                upload.on_progress(min((start + len(chunk)) / total, 1.0) if total else 1.0)
+            return True
+
+        # CMD_UPLOAD_FINISH
+        if packet.attribute == ATTR_REQUEST and self._writer and not self._writer.is_closing():
+            self._writer.write(
+                Packet(packet.sender_id, PEER_US, ATTR_ACK, packet.sequence,
+                       *CMD_UPLOAD_FINISH, b"\x00").encode()
+            )
+        if not upload.done.done():
+            if packet.payload[:1] == b"\x00":
+                upload.done.set_result(None)
+            else:
+                upload.done.set_exception(
+                    SacpError(f"upload failed ({packet.payload.hex()})")
+                )
+        return True
 
     # -------------------------------------------------------------- transport
 
@@ -469,6 +580,9 @@ class SnapmakerClient:
         future = self._pending.get(key)
         if future and packet.attribute == ATTR_ACK and not future.done():
             future.set_result(packet)
+            return
+
+        if self._handle_upload_packet(packet):
             return
 
         handler = self._handlers.get(packet.command)

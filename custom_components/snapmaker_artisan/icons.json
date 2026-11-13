@@ -21,5 +21,10 @@
         "state": { "off": "mdi:lan-disconnect" }
       }
     }
+  },
+  "services": {
+    "upload_gcode": {
+      "service": "mdi:upload"
+    }
   }
 }

@@ -58,5 +58,25 @@
     "switch": {
       "connection": { "name": "Connection" }
     }
+  },
+  "services": {
+    "upload_gcode": {
+      "name": "Upload G-code",
+      "description": "Uploads a G-code file from the Home Assistant host to the printer's storage. Start the print on the touchscreen afterwards.",
+      "fields": {
+        "device_id": {
+          "name": "Printer",
+          "description": "The Snapmaker Artisan to upload to."
+        },
+        "file_path": {
+          "name": "File path",
+          "description": "Path of the G-code file. Its folder must be listed in allowlist_external_dirs."
+        },
+        "filename": {
+          "name": "File name",
+          "description": "Name on the printer. Defaults to the name of the file."
+        }
+      }
+    }
   }
 }

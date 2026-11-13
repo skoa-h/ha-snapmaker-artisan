@@ -233,3 +233,26 @@ async def test_subscribe_timeout_is_connection_error(printer: FakePrinter, monke
     with pytest.raises(SacpConnectionError):
         await client.connect(auth_timeout=2)
     assert not client.connected
+
+
+@pytest.mark.parametrize("size", [0, 1000, 61_440, 61_440 * 2 + 5])
+async def test_upload_file(printer: FakePrinter, size: int) -> None:
+    client = SnapmakerClient("127.0.0.1", port=printer.port)
+    await client.connect(auth_timeout=2)
+    data = bytes(i % 251 for i in range(size))
+    progress: list[float] = []
+    await client.upload_file("part.gcode", data, progress.append)
+    assert printer.uploads["part.gcode"] == data
+    assert len(progress) == size // 61_440 + 1
+    assert progress[-1] == 1.0
+    await client.disconnect()
+
+
+async def test_upload_rejected(printer: FakePrinter) -> None:
+    printer.reject_upload = True
+    client = SnapmakerClient("127.0.0.1", port=printer.port)
+    await client.connect(auth_timeout=2)
+    with pytest.raises(SacpError):
+        await client.upload_file("part.gcode", b"G28\n")
+    assert client._upload is None
+    await client.disconnect()

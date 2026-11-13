@@ -84,5 +84,25 @@
         "name": "Verbindung"
       }
     }
+  },
+  "services": {
+    "upload_gcode": {
+      "name": "G-Code hochladen",
+      "description": "Lädt eine G-Code-Datei vom Home-Assistant-Host in den Speicher des Druckers. Den Druck danach am Touchscreen starten.",
+      "fields": {
+        "device_id": {
+          "name": "Drucker",
+          "description": "Der Snapmaker Artisan, auf den hochgeladen wird."
+        },
+        "file_path": {
+          "name": "Dateipfad",
+          "description": "Pfad der G-Code-Datei. Der Ordner muss in allowlist_external_dirs stehen."
+        },
+        "filename": {
+          "name": "Dateiname",
+          "description": "Name auf dem Drucker. Standardmäßig der Name der Datei."
+        }
+      }
+    }
   }
 }

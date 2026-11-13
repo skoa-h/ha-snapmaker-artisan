@@ -1,0 +1,17 @@
+upload_gcode:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: snapmaker_artisan
+    file_path:
+      required: true
+      example: /config/gcode/benchy.gcode
+      selector:
+        text:
+    filename:
+      required: false
+      example: benchy.gcode
+      selector:
+        text:

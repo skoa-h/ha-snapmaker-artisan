@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import struct
 
 from custom_components.snapmaker_artisan.sacp import (
@@ -18,7 +19,11 @@ from custom_components.snapmaker_artisan.sacp import (
     CMD_PRINT_TIME,
     CMD_PRINTING_FILE_INFO,
     CMD_SUBSCRIBE,
+    CMD_UPLOAD_CHUNK,
+    CMD_UPLOAD_FINISH,
+    CMD_UPLOAD_START,
     Packet,
+    read_sacp_string,
     sacp_string,
 )
 
@@ -34,6 +39,9 @@ class FakePrinter:
         self.accept_connection = True
         # Real touchscreens often ignore the printing file info request.
         self.screen_answers_file_info = True
+        self.reject_upload = False
+        self.uploads: dict[str, bytes] = {}
+        self._upload: dict | None = None
         self.subscriptions: dict[tuple[int, int], int] = {}
         self.received: list[Packet] = []
         self.server: asyncio.Server | None = None
@@ -103,9 +111,42 @@ class FakePrinter:
                 )
             else:
                 self._reply(writer, packet, b"\x01")
+        elif packet.command == CMD_UPLOAD_START:
+            if self.reject_upload:
+                self._reply(writer, packet, b"\x01")
+            else:
+                name, offset = read_sacp_string(packet.payload, 0)
+                size, packages = struct.unpack_from("<IH", packet.payload, offset)
+                md5, _ = read_sacp_string(packet.payload, offset + 6)
+                self._upload = {"name": name, "size": size, "packages": packages,
+                                "md5": md5, "data": b""}
+                self._reply(writer, packet, b"\x00")
+                self._request_chunk(writer, 0)
+        elif packet.command == CMD_UPLOAD_CHUNK and packet.attribute == ATTR_ACK:
+            upload = self._upload
+            _md5, offset = read_sacp_string(packet.payload, 1)
+            index, length = struct.unpack_from("<HH", packet.payload, offset)
+            upload["data"] += packet.payload[offset + 4 : offset + 4 + length]
+            if index + 1 < upload["packages"]:
+                self._request_chunk(writer, index + 1)
+            else:
+                ok = hashlib.md5(upload["data"]).hexdigest() == upload["md5"]
+                self.uploads[upload["name"]] = upload["data"]
+                self._seq += 1
+                writer.write(
+                    Packet(0, 2, ATTR_REQUEST, self._seq, *CMD_UPLOAD_FINISH,
+                           b"\x00" if ok else b"\x01").encode()
+                )
         elif packet.command == CMD_DISCONNECT:
             pass
         await writer.drain()
+
+    def _request_chunk(self, writer: asyncio.StreamWriter, index: int) -> None:
+        self._seq += 1
+        writer.write(
+            Packet(0, 2, ATTR_REQUEST, self._seq, *CMD_UPLOAD_CHUNK,
+                   sacp_string(self._upload["md5"]) + struct.pack("<H", index)).encode()
+        )
 
     def push_all(self) -> None:
         """Send one round of subscription data to every client."""
